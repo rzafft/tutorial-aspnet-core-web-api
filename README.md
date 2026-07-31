@@ -88,3 +88,265 @@ tutorial-aspnet-core-web-api.http
 
 - A file containing sample HTTP requests that can be executed directly from Visual Studio Code to test the API.
 ```
+
+# Step 2: Connect to the SQL Server 
+
+Our API exists, but it currently has no way to communicate with our SQL Server database. To allow our application to read and write data, we'll use Entity Framework Core (EF Core).
+
+Entity Framework Core is Microsoft's Object-Relational Mapper (ORM). An ORM maps C# classes to database tables and automatically generates SQL queries behind the scenes. Instead of manually writing SQL for every operation, we work with C# objects and let EF Core communicate with SQL Server.
+
+The API will communicate with SQL Server like this:
+
+```
+React App
+      │
+      ▼
+ASP.NET Core Web API
+      │
+      ▼
+Entity Framework Core
+      │
+      ▼
+SQL Server
+```
+
+The first thing we need is the SQL Server provider for Entity Framework Core.
+
+### Install Entity Framework Core
+
+From your project directory, install the required NuGet packages:
+
+```
+dotnet add package Microsoft.EntityFrameworkCore.SqlServer
+dotnet add package Microsoft.EntityFrameworkCore.Design
+```
+
+The first package allows Entity Framework Core to communicate with SQL Server.
+
+The second package provides development tools that we'll use later to generate models and database migrations.
+
+After installing the packages, restore the project:
+
+```
+dotnet restore
+```
+
+### Add a connection string
+
+ASP.NET Core stores configuration in appsettings.json. Open the file and add a ConnectionStrings section.
+
+If you're using the same Docker SQL Server from the previous tutorial, it should look similar to this:
+
+```
+{
+  "ConnectionStrings": {
+    "AdmissionsDatabase": "Server=localhost,1433;Database=Admissions;User Id=sa;Password=YourStrongPassword123!;TrustServerCertificate=True;"
+  }
+}
+```
+
+The connection string tells SQL Server where the database is located and how to authenticate.
+
+The parts are:
+Server=localhost,1433 — SQL Server is running on your computer using port 1433.
+Database=Admissions — the database we created previously.
+User Id=sa — the SQL Server login.
+Password=... — the password you chose when creating the SQL Server container.
+TrustServerCertificate=True — accepts the SQL Server development certificate.
+
+Thus, the full appsettings.json should now looks like this 
+
+```
+{
+  "ConnectionStrings": {
+    "AdmissionsDatabase": "Server=localhost,1433;Database=Admissions;User Id=sa;Password=YourStrongPassword123!;TrustServerCertificate=True;"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}
+```
+
+### Verify the connection
+
+Before writing any code, make sure SQL Server is still running.
+
+```
+docker ps
+```
+
+You should see your SQL Server container listed.
+Next, verify you can still connect using Azure Data Studio, DBeaver, or the SQL Server extension in VS Code.
+If you can view the Admissions database and its tables, you're ready to connect the API.
+
+
+# Step 3: Create the Database Context (DbContext)
+
+Now that we have stored our SQL Server connection information in appsettings.json, we need to tell ASP.NET Core how to use it.
+
+Now that we have stored our SQL Server connection information in appsettings.json, we need to tell ASP.NET Core how to use it.
+
+Think of the DbContext as the bridge:
+
+```
+ASP.NET Core API
+        |
+        |
+    ApplicationDbContext
+        |
+        |
+ Entity Framework Core
+        |
+        |
+    SQL Server Database
+```
+
+The DbContext will later contain properties representing our database tables.
+
+For Example: 
+
+```
+public DbSet<Student> Students { get; set; }
+```
+
+means:
+"There is a Students table in SQL Server that I want to access through C#."
+
+### Create a Data Folder
+
+Inside your project, create a folder called `Data`
+
+### Create the DbContext class
+
+Inside the `Data` folder create: `AdmissionsDbContext.cs` and add:
+
+```
+using Microsoft.EntityFrameworkCore;
+
+namespace tutorial_aspnet_core_web_api.Data;
+
+public class AdmissionsDbContext : DbContext
+{
+    public AdmissionsDbContext(DbContextOptions<AdmissionsDbContext> options)
+        : base(options)
+    {
+    }
+}
+```
+
+Right now this class is empty. That is okay.
+
+We are first creating the connection between the API and SQL Server. Later, when we generate our models, this class will contain our tables.
+
+### Register the DbContext with ASP.NET Core
+
+Now open: `Program.cs`
+
+Currently it might look someting lke 
+
+```
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddOpenApi();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+app.UseHttpsRedirection();
+
+var summaries = new[]
+{
+    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
+};
+
+app.MapGet("/weatherforecast", () =>
+{
+    var forecast =  Enumerable.Range(1, 5).Select(index =>
+        new WeatherForecast
+        (
+            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
+            Random.Shared.Next(-20, 55),
+            summaries[Random.Shared.Next(summaries.Length)]
+        ))
+        .ToArray();
+    return forecast;
+})
+.WithName("GetWeatherForecast");
+
+app.Run();
+
+record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+{
+    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+}
+```
+
+Add the following
+
+```
+using Microsoft.EntityFrameworkCore;
+using tutorial_aspnet_core_web_api.Data;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<AdmissionsDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("AdmissionsDatabase")
+    ));
+
+builder.Services.AddControllers();
+
+var app = builder.Build();
+```
+
+(1) `builder.Configuration.GetConnectionString("AdmissionsDatabase")` looks inside appsettings.json:
+
+```
+"ConnectionStrings": {
+  "AdmissionsDatabase": "Server=localhost,1433;Database=Admissions;..."
+}
+```
+
+and retrieves that connection string.
+
+(2) `options.UseSqlServer(...)`
+
+tells Entity Framework:
+"Use Microsoft SQL Server as the database provider."
+
+### Install the EF Core tools
+
+You also need the EF command-line tools:
+
+```
+dotnet tool install --global dotnet-ef
+```
+
+
+Verify it with `dotnet ef --version`
+
+you should see soemthing like `Entity Framework Core tools version 10.x.x`
+
+### Test the connection
+
+Build the project `dotnet build`. If everything is correct you should see `Build Succeeded.`
+
+At this point 
+
+✅ ASP.NET Core project exists
+✅ Connection string exists
+✅ EF Core installed
+✅ DbContext created
+✅ API knows how to connect to SQL Server
+The next step (Step 4) would be generating C# models from your existing Admissions database using EF Core scaffolding. That is where your SQL tables (SPAIDEN, SARADAP, etc.) become C# classes.

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("tutorial-aspnet-core-web-api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fb5da1d7269bed6e720354f18b59c14d50842a3f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+870bd74e63c2f8bcb2ea534bdeb3ab04f766c77e")]
 [assembly: System.Reflection.AssemblyProductAttribute("tutorial-aspnet-core-web-api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("tutorial-aspnet-core-web-api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
