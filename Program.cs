@@ -1,4 +1,9 @@
+using Microsoft.EntityFrameworkCore;
+using tutorial_aspnet_core_web_api.Data;
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -13,6 +18,14 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.MapGet("/test-db", async (ApplicationDbContext db) =>
+{
+    var canConnect = await db.Database.CanConnectAsync();
+    return canConnect ? "Database connection successful" : "Could not connect to database";
+});
+
+
 
 var summaries = new[]
 {
